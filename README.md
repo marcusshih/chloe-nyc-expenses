@@ -1,112 +1,112 @@
-# NYC with Chloe ♡
+# New York — Travel ledger
 
-A small, mobile-first shared expense tracker for Marcus and Chloe, November 4–9, 2026. Next.js App Router + React + JavaScript + Tailwind CSS + Lucide + Supabase. Static export hosted on GitHub Pages; no application server, API routes, server actions, or service-role key.
+A public, shared expense tracker for Marcus and Chloe’s NYC trip, November 4–9, 2026. Anyone opening the configured site can immediately view, add, edit, and delete expenses. No accounts, sign-in links, invitations, or membership setup.
 
-## 1. Create Supabase (required)
+The existing Next.js App Router frontend exports static files for GitHub Pages. Supabase PostgreSQL holds the shared data; Supabase Realtime syncs changes across devices. No application server or private browser credentials are needed.
 
-1. Create a project at https://supabase.com/dashboard. Save your database password privately; it is never needed in the browser app.
-2. Open **SQL Editor → New query**, paste `supabase/migrations/001_trip.sql`, and run it once. It creates tables, RLS, invitation functions, triggers, and Realtime publication.
-3. In **Project Settings → API** (or the Connect dialog), copy your Project URL and **publishable key** (legacy `anon` also works). Never use `service_role` or a secret key.
-4. In **Authentication → Providers → Email**, enable Email and email confirmation. Keep the standard magic-link template containing `{{ .ConfirmationURL }}`. This app uses passwordless magic links, not passwords or an OTP-code form.
-5. In **Authentication → URL Configuration**, set Site URL to `https://marcusshih.github.io/chloe-nyc-expenses/`. Add redirect URLs `https://marcusshih.github.io/chloe-nyc-expenses/**` and `http://localhost:3000/**`. The wildcard preserves the optional invitation query parameter. If using a different GitHub owner, replace the hostname.
-6. For reliable delivery to both accounts, configure your SMTP provider under Authentication email settings. Supabase's built-in testing sender can restrict recipients and impose low limits; check the dashboard's current limits. Never put SMTP credentials in this project.
+## Public-editable means public
 
-Reference: [Supabase passwordless email](https://supabase.com/docs/guides/auth/auth-email-passwordless), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Realtime](https://supabase.com/docs/guides/realtime/postgres-changes).
+**Every shared expense, title, payer, date, category, and note is public. Anyone can change or permanently delete all shared expenses through the site or directly through the API.** The publishable key and trip ID are visible in the downloaded JavaScript; hiding the website URL does not protect the data. “Paid by” is a choice, not verified identity. There is no user audit trail, authorization between Marcus and Chloe, or undo. Third parties can copy the data, spam the database, or consume your Supabase quota.
 
-## 2. Run locally
+Do not enter emails, addresses, payment details, receipt images with private information, or other sensitive information. Export CSV backups regularly and keep copies outside the app. A CSV is a snapshot; the app does not automatically restore it or keep a backup history. The owner can restore reviewed data through the Supabase dashboard. This tradeoff is intentional for a small personal trip.
+
+**Never put a Supabase secret key (`sb_secret_…`), legacy `service_role` key, database password, or JWT signing secret in this repository, GitHub Actions variables, or any `NEXT_PUBLIC_` variable.** Use only a public publishable key (`sb_publishable_…`). The build rejects other key formats before compiling the app. RLS stays enabled and restricts public writes to the fixed shared trip; it does not prevent public vandalism of that trip. Supabase’s [API key guide](https://supabase.com/docs/guides/api/api-keys) explains the key types.
+
+## Supabase setup
+
+1. Create a project at [Supabase](https://supabase.com/dashboard), preferably dedicated to this tracker. No Auth provider, email, SMTP, redirect URL, or anonymous sign-in setup is needed.
+2. Open **SQL Editor** and apply the migrations in order:
+   - New project: run [001_trip.sql](supabase/migrations/001_trip.sql), then [002_public_shared_trip.sql](supabase/migrations/002_public_shared_trip.sql). The first file is the unchanged historical schema; the second removes its account requirements and callable invitation functions.
+   - Existing tracker database with `001` already applied: **back up the database first**, then run **only `002`** once. Do not rerun `001`.
+3. `002` creates the one shared trip with ID `20261104-0000-4000-8000-000000000001`. If exactly one old trip has the original name `NYC with Chloe ♡` and dates November 4–9, its existing expenses are moved into the shared trip without changing expense IDs or payer/split values. Those expenses become public. Other trips stay private. Legacy membership/invitation records and creator UUIDs are retained for the database owner but inaccessible to browser roles. The frontend does not use them.
+4. If multiple old trips match, the migration aborts atomically. As owner, review and consolidate the intended NYC trip first, or narrow the `source_id` selection in a reviewed copy of `002` to the specific trip you intend to publish. If you renamed the old trip, explicitly select its ID before running the migration; the default name/date match will leave it private. Do not merge unrelated trips.
+5. In **Project Settings → API Keys**, copy the **publishable key** (`sb_publishable_…`). Copy the project URL from **Connect** or the project’s API settings.
+6. The migration adds only `public.expense_sync` to this app’s `supabase_realtime` publication and removes this app’s old `trips`/`expenses` publication entries. Under **Database → Publications**, confirm `expense_sync` is enabled. It contains only a fixed trip ID and a revision counter.
+
+The migration is transactional and intended to run once. Applying it makes the original account-based frontend incompatible; rebuild/publish the new frontend after migrating.
+
+## Run locally
 
 Requires Node 22+.
 
 ```sh
-cd chloe-nyc-expenses
-cp .env.example .env.local
-# Fill in the URL and publishable key in .env.local; leave BASE_PATH empty.
 npm ci
+cp .env.example .env.local
+```
+
+Fill `.env.local` with:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_PUBLIC_KEY
+NEXT_PUBLIC_BASE_PATH=
+```
+
+Replace the placeholders with real values, then:
+
+```sh
 npm test
 npm run dev
 ```
 
-Open http://localhost:3000. Configuration is compiled into the static site; restart dev or rebuild after changing it. Without credentials the app displays a setup screen. No fake expenses or browser-only database are used. Supabase may persist its authentication session in browser storage; all trip data lives in PostgreSQL.
+Open http://localhost:3000 on each device/browser. Both see the same trip immediately. Select **Paid by Marcus** or **Paid by Chloe** when adding an expense. No user identity is stored or required. Existing authentication sessions from the old site are never read or reused: the client disables Supabase Auth and always uses the public key’s `anon` role.
 
-## 3. Create the shared trip
+Configuration is compiled into the static site: restart dev or rebuild after changing it. Both empty/placeholder values show a setup message; incomplete settings or a non-publishable key fail configuration validation. There is no fake database or local-only expense storage.
 
-1. Marcus signs in with his own email, opens the email link, chooses **Marcus**, and creates the NYC trip. Chloe can instead create first as **Chloe**.
-2. The creator clicks **Invite**, enters the partner's exact sign-in email, creates the invitation, and privately shares the link.
-3. The partner opens the link, signs in with the matching email, and clicks **Join trip**. If signing in separately, paste the invitation link or 64-character code into the join form.
-4. Both phones now access the same trip. Each account can belong to one trip and each trip has exactly one available slot for each name. The database assigns the invited name; the recipient cannot choose another role.
+## GitHub Pages
 
-Invitation tokens contain 256 random bits, are stored only as SHA-256 hashes, expire after 48 hours, are bound to a confirmed email, and are single-use. A new invitation invalidates earlier invitations. Trip-row locking serializes redemption. There are no direct client writes to membership or invitations.
+Keep the existing [repository](https://github.com/marcusshih/chloe-nyc-expenses) and `.github/workflows/deploy.yml` workflow. In **Settings → Secrets and variables → Actions → Variables**, set:
 
-## 4. Publish to GitHub Pages
+- `NEXT_PUBLIC_SUPABASE_URL`: your project URL.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: the public `sb_publishable_…` key. This replaces `NEXT_PUBLIC_SUPABASE_ANON_KEY`; remove that obsolete variable if present.
 
-The public repository is https://github.com/marcusshih/chloe-nyc-expenses and the Pages source is already configured to GitHub Actions. The creation commands below are for reproducing setup; skip them for the existing repository.
+These values are intentionally public. Do not add a private key. Under **Settings → Pages**, select **GitHub Actions**. Push changes to `main` or run **Actions → Deploy trip to GitHub Pages → Run workflow**. The workflow installs dependencies, runs database/money/config and two-browser UI tests, builds with `/chloe-nyc-expenses` as the base path and asset prefix, and deploys `out/`.
 
-The app folder intentionally has no `.git`: the surrounding directory is an existing coursework repository. Publish only this app's files, not coursework. Use a separate checkout outside that repository, for example:
+If both variables are absent, the workflow warns and publishes the setup message. Set both and rebuild to activate the shared database. Missing one value or using the wrong key format fails the build.
 
-```sh
-# Run these from the coursework root after installing GitHub CLI.
-gh auth login
-# Skip creation if the repository already exists.
-gh repo create marcusshih/chloe-nyc-expenses --public --description 'Shared NYC trip expenses'
-# Use an unused destination outside the coursework repository.
-git clone https://github.com/marcusshih/chloe-nyc-expenses.git /private/tmp/chloe-nyc-publish
-rsync -av --exclude=.git --exclude=node_modules --exclude=.next --exclude=out --exclude=.env.local --exclude='.env.production*' chloe-nyc-expenses/ /private/tmp/chloe-nyc-publish/
-cd /private/tmp/chloe-nyc-publish
-git switch -c main
-git add .
-git commit -m 'Build shared NYC expense tracker'
-git push -u origin main
-```
+Expected URL: https://marcusshih.github.io/chloe-nyc-expenses/ . Confirm the deployment succeeds before testing the URL on both phones. [Next.js static export](https://nextjs.org/docs/app/guides/static-exports) remains enabled; the app needs no server routes, middleware, or server actions.
 
-Before pushing, in the new repository's **Settings → Secrets and variables → Actions → Variables**, add:
+## Data permissions and synchronization
 
-- `NEXT_PUBLIC_SUPABASE_URL`: your project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: your publishable/anon key
+- RLS remains enabled on every tracker table. Only `anon` receives public expense permissions: SELECT on explicit non-sensitive columns, INSERT on editable fields plus the fixed trip ID, UPDATE on editable fields, and DELETE. RLS checks the fixed trip ID for each operation, independent of frontend filters. Clients cannot change IDs, timestamps, trip assignment, or legacy creator fields. Existing constraints validate amounts, names, categories, title/notes lengths, split types, and trip dates.
+- Trips, old members, and old invitations have no browser access. Old account RPCs and membership policies are removed. Old `authenticated` table **and column** grants are revoked. No grants are added to unrelated tables. Review any other tables/policies you previously created in the Supabase project separately; this migration only manages this tracker’s schema.
+- `anon` can SELECT the small `expense_sync` row but cannot write it. A restricted trigger increments the counter after each shared expense INSERT, UPDATE, or DELETE. Realtime delivers that authorized UPDATE and the frontend reloads the expense list. Expense DELETE events and creator UUIDs are not published. This avoids the [Realtime DELETE authorization limitation](https://supabase.com/docs/guides/realtime/postgres-changes#receiving-old-records).
+- The trigger runs with owner privileges, a fixed target, and an empty search path; browser roles cannot execute it directly. It has no arbitrary table/trip arguments. [RLS reference](https://supabase.com/docs/guides/database/postgres/row-level-security).
+- Reconnect, window focus, returning to a visible tab, and a 30-second fallback refresh recover missed changes. The sync label reports the connection state. Errors are shown; failed writes do not silently become local data. Subscription/timer/listener cleanup occurs on unmount.
 
-These two values are intentionally public browser configuration; RLS enforces access. Never add a service-role key. Under **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**. The workflow tests, exports Next.js with `/chloe-nyc-expenses` as both base path and asset prefix, uploads `out/`, and deploys Pages. If the first run predates configuration, rerun **Actions → Deploy trip to GitHub Pages → Run workflow**. When both variables are absent, the workflow warns and publishes the setup screen. If only one is set, the build fails. Add both and rerun to activate the tracker.
+## Dashboard, money, and backups
 
-Expected URL after a successful deployment: https://marcusshih.github.io/chloe-nyc-expenses/ . This URL is an expected destination, not proof of deployment. Confirm the Actions deployment succeeds and then visit it on both phones.
+- Monetary amounts remain validated integer cents ($0.01–$1,000,000). Expenses are limited to November 4–9, 2026 by both the form and database.
+- Shared odd cents go to Marcus. Personal splits assign all responsibility to the selected person, regardless of who paid.
+- Settlement = what Marcus paid minus Marcus’s responsibility. Positive means Chloe owes Marcus; negative means Marcus owes Chloe.
+- Totals, settlement, and category breakdown cover the whole trip. Date/category filters affect the expense list only.
+- **Export CSV** always downloads **all loaded trip expenses**, even with filters active, as `nyc-expenses-backup.csv`. Reads are paginated to avoid silently truncating at Supabase’s default response limit. CSV uses two decimal places, quotes/escapes text and line breaks, and neutralizes formula-leading values, including leading whitespace. CSV is for offline backups, not a full database dump.
+- Edits/deletes check `updated_at`. A stale form reports a conflict; close and reopen it to use the latest version. Deletion requires confirmation.
+- There were no separate Auth packages in this project. The login/invitation UI, actions, state, styles, and session configuration have been removed. The Supabase SDK remains necessary for PostgreSQL and Realtime; its internal Auth dependency is unused.
 
-[Next.js static export](https://nextjs.org/docs/app/guides/static-exports) is enabled with `output: 'export'`. Production uses webpack for a reproducible build in environments that restrict Turbopack subprocesses. Local dev uses the same webpack compiler. No network font downloads are required.
-
-## Money and behavior
-
-- Monetary amounts are integer cents from validated decimal strings; the UI accepts $0.01–$1,000,000 per expense. Expenses are restricted to the six trip dates by both the UI and SQL.
-- Shared odd cents consistently go to Marcus: $0.01 allocates Marcus 1¢, Chloe 0¢. Personal expenses allocate 100% to the named person, regardless of who paid.
-- Settlement = amount Marcus paid minus Marcus's responsibility. Positive: Chloe owes Marcus; negative: Marcus owes Chloe.
-- Totals, settlement, and category breakdown always cover the whole trip. Date filtering changes the expense list and CSV export only.
-- Edits/deletes use `updated_at` optimistic concurrency checks. Stale forms report a conflict instead of overwriting a partner's changes. Deletion requires a confirmation dialog.
-- Realtime listens to RLS-protected trip UPDATE events. An expense trigger touches the parent trip for every insert, update, or delete, and the client refetches authorized rows. This also handles deletes without exposing unfiltered expense DELETE events. Subscriptions and event listeners clean up on trip change/unmount. Reconnect, focus, and a 30-second fallback refresh recover missed changes. A sync status indicates connection state; failures are surfaced.
-- CSV exports exactly two decimal places, escapes quotes and line breaks, and neutralizes formula-leading content.
-
-## Verify before the trip
+## Verification
 
 ```sh
+# Offline: execute migrations/permissions in embedded PostgreSQL plus money/config tests.
 npm test
+
+# Browser UI: install Chromium once, then run two isolated browsers with a fixture API/socket.
+npx playwright install chromium
+npm run test:browser
+# Alternatively, use an installed Google Chrome:
+# PLAYWRIGHT_CHANNEL=chrome npm run test:browser
+
+# Production static export with the existing GitHub project path.
 NEXT_PUBLIC_BASE_PATH=/chloe-nyc-expenses npm run build
+
+# Real Supabase: after applying SQL and configuring .env.local.
+npm run test:supabase
 ```
 
-Then test with actual Supabase credentials:
+`npm test` uses PGlite (embedded PostgreSQL) with Supabase role/Auth stubs. It applies the exact upgrade migration, executes CRUD as `anon`, verifies RLS and column grants, preservation of existing expenses, counter updates for insert/update/delete, stale-edit rejection, private-table denial, and atomic refusal of ambiguous migrations. Only `001`’s unused `pgcrypto` extension installation is omitted because PGlite does not provide it. This is a database-policy test, not a hosted Supabase test.
 
-1. Sign in in separate browser profiles with Marcus and Chloe. Create and join the trip.
-2. Add a shared $51 expense paid by Marcus. Both phones should show $51 total and “Chloe owes Marcus $25.50”.
-3. Add $0.01 shared, personal expenses paid by the other person, and verify settlement.
-4. Edit and delete on each phone; confirm the other phone refreshes, including on reconnect. Open the same expense on both phones to confirm a stale edit is rejected.
-5. Check date filtering, CSV, keyboard focus, dialog Escape, and 390px iPhone layout.
-6. Sign in as a third, unrelated account: it must see none of this trip. Direct REST reads of the trip/expenses should return no rows; mutations should fail. Test invitations with a wrong email, expired/reused token, and anonymous access. These checks require a real Supabase instance; unit tests do not prove deployed RLS or synchronization.
+The browser test checks immediate public access, both payer choices, settlement, expense CRUD, event-driven synchronization between two sessions, stale-edit conflicts, category/date filters, CSV contents with active filters, and mobile width. Its REST/WebSocket transport is simulated; it does not prove a hosted Realtime publication works.
 
-## Structure
+`npm run test:supabase` uses two independent clients with **only the publishable key**, creates a uniquely named test expense, verifies the second client receives insert/update/delete changes **through Realtime** (no database polling fallback), checks private data/sync writes are denied, and cleans up its test row. It fails without real configuration. No Supabase project was available during this change, so this hosted check must be run after setup.
 
-- `app/page.js`: browser auth, onboarding, expense forms, dashboard, Realtime lifecycle
-- `app/globals.css`: Tailwind entry and warm sage responsive styling
-- `app/layout.js`: metadata and viewport
-- `lib/supabase.js`: singleton public browser client
-- `lib/money.js`: pure cent math, summaries, CSV
-- `supabase/migrations/001_trip.sql`: schema, scoped RPCs, RLS, Realtime
-- `tests/money.test.js`: monetary invariants and CSV tests
-- `.github/workflows/deploy.yml`: static Pages build/deploy
-- `.env.example`: configuration template; actual env files are ignored
-
-## Verification status
-
-Money and CSV unit tests run locally. Supabase project setup, real email sign-in, invitation acceptance, deployed RLS, and two-device Realtime require your Supabase project and are not verified until the checklist above is completed.
+Finally open the deployed site in two fresh/incognito browsers or on two phones. Confirm there is no login, add a $51 shared expense paid by Marcus, observe “Chloe owes Marcus $25.50” on both, edit the payer to Chloe, delete the expense, and confirm both update. Export a CSV and open it offline. Disconnect a device, reconnect, and verify its list catches up. Do not treat “Live sync” alone as proof that expenses are synchronizing.

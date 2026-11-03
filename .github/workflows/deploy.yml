@@ -22,21 +22,24 @@ jobs:
       - uses: actions/configure-pages@v5
       - run: npm ci
       - run: npm test
+      - name: Install browser for UI checks
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
       - name: Validate public configuration
         env:
           SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           if [ -z "$SUPABASE_URL" ] && [ -z "$SUPABASE_KEY" ]; then
-            echo '::warning::Supabase is not configured. Deploying the setup screen; authentication and trip data are unavailable until both repository variables are set and the site is rebuilt.'
+            echo '::warning::Supabase is not configured. Deploying the setup screen; shared trip data are unavailable until both repository variables are set and the site is rebuilt.'
           elif [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
-            echo '::error::Set both NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY repository variables.'
+            echo '::error::Set both NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY repository variables.'
             exit 1
           fi
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_BASE_PATH: /chloe-nyc-expenses
       - uses: actions/upload-pages-artifact@v3
         with:
