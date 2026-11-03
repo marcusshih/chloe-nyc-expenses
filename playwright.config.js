@@ -14,6 +14,7 @@ export default defineConfig({
     url: 'http://127.0.0.1:3100',
     reuseExistingServer: false,
     env: {
+      NEXT_DIST_DIR: '.next-browser',
       NEXT_PUBLIC_SUPABASE_URL: 'https://nyc-test.supabase.co',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_browser_test',
       NEXT_PUBLIC_BASE_PATH: '',

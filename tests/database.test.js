@@ -7,6 +7,7 @@ import { EXPENSE_COLUMNS, TRIP_ID } from '../lib/expenses.js';
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const oldTrip = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const otherTrip = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const dateMigration = await readFile(new URL('../supabase/migrations/003_flexible_expense_dates.sql', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/002_public_shared_trip.sql', import.meta.url), 'utf8');
 async function legacyDatabase() {
   const db = new PGlite();
@@ -39,6 +40,7 @@ test('migration preserves NYC expenses; anon CRUD is scoped and signals every ch
             ('${otherTrip}','Private expense',999,'2026-11-04','Other','Marcus','shared','${owner}');
     `);
     await db.exec(migration);
+    await db.exec(dateMigration);
     const rls = await db.query(`select relname,relrowsecurity from pg_class where oid in
       ('public.trips'::regclass,'public.expenses'::regclass,'public.trip_members'::regclass,
        'public.trip_invitations'::regclass,'public.expense_sync'::regclass)`);
@@ -81,7 +83,9 @@ test('migration preserves NYC expenses; anon CRUD is scoped and signals every ch
     await assert.rejects(db.query(insertSQL, [otherTrip, 'Wrong trip', 100]), /row-level security/);
     await assert.rejects(db.query(insertSQL, [TRIP_ID, 'Invalid amount', 0]), /check constraint/);
     await assert.rejects(db.exec(`update public.expenses set paid_by='Someone else'`), /check constraint/);
-    await assert.rejects(db.exec(`update public.expenses set expense_date='2026-12-01'`), /check constraint/);
+    await db.exec(`update public.expenses set expense_date='2026-11-03'`);
+    assert.equal((await db.query('select expense_date::text as date from public.expenses')).rows[0].date, '2026-11-03');
+    await assert.rejects(db.exec(`update public.expenses set expense_date='2026-02-30'`), /date|range/i);
     for (const sql of [
       'select created_by from public.expenses', 'select * from public.expenses',
       'select * from public.trips', 'select * from public.trip_members', 'select * from public.trip_invitations',
@@ -107,6 +111,7 @@ test('fresh database seeds exactly one shared trip without accounts', async () =
   const db = await legacyDatabase();
   try {
     await db.exec(migration);
+    await db.exec(dateMigration);
     assert.equal((await db.query('select count(*)::int as n from public.trips')).rows[0].n, 1);
     await db.exec('set role anon');
     assert.equal((await db.query(insertSQL, [TRIP_ID, 'First expense', 100])).rows.length, 1);

@@ -1,4 +1,5 @@
 // Real hosted integration check. Two independent clients, public key only.
+import { todayInNewYork } from '../lib/date.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createPublicClient } from '../lib/supabase.js';
@@ -32,9 +33,9 @@ try {
     if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) eventError = new Error(`Realtime: ${status}`);
   });
   await waitFor(() => subscribed, 'public Realtime subscription');
-  const payload = { title: marker, amount_cents: 5100, expense_date: '2026-11-04', category: 'Other', paid_by: 'Marcus', split_type: 'shared', notes: marker };
+  const payload = { title: marker, amount_cents: 5100, expense_date: todayInNewYork(), category: 'Other', paid_by: 'Marcus', split_type: 'shared', notes: marker };
   ({ id } = await saveExpense(writer, payload));
-  await waitFor(() => observed?.some(e => e.id === id && e.paid_by === 'Marcus'), 'insert on second client');
+  await waitFor(() => observed?.some(e => e.id === id && e.paid_by === 'Marcus' && e.expense_date === payload.expense_date), 'insert on second client');
   console.log('PASS: public insert and Realtime insert synchronization');
   const original = observed.find(e => e.id === id);
   await saveExpense(writer, { ...payload, amount_cents: 5200, paid_by: 'Chloe' }, original);
