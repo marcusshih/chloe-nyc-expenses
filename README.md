@@ -39,6 +39,8 @@ Invitation tokens contain 256 random bits, are stored only as SHA-256 hashes, ex
 
 ## 4. Publish to GitHub Pages
 
+The public repository is https://github.com/marcusshih/chloe-nyc-expenses and the Pages source is already configured to GitHub Actions. The creation commands below are for reproducing setup; skip them for the existing repository.
+
 The app folder intentionally has no `.git`: the surrounding directory is an existing coursework repository. Publish only this app's files, not coursework. Use a separate checkout outside that repository, for example:
 
 ```sh
@@ -61,11 +63,11 @@ Before pushing, in the new repository's **Settings → Secrets and variables →
 - `NEXT_PUBLIC_SUPABASE_URL`: your project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: your publishable/anon key
 
-These two values are intentionally public browser configuration; RLS enforces access. Never add a service-role key. Under **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**. The workflow tests, exports Next.js with `/chloe-nyc-expenses` as both base path and asset prefix, uploads `out/`, and deploys Pages. If the first run predates configuration, rerun **Actions → Deploy trip to GitHub Pages → Run workflow**. Build fails clearly when variables are absent.
+These two values are intentionally public browser configuration; RLS enforces access. Never add a service-role key. Under **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**. The workflow tests, exports Next.js with `/chloe-nyc-expenses` as both base path and asset prefix, uploads `out/`, and deploys Pages. If the first run predates configuration, rerun **Actions → Deploy trip to GitHub Pages → Run workflow**. When both variables are absent, the workflow warns and publishes the setup screen. If only one is set, the build fails. Add both and rerun to activate the tracker.
 
 Expected URL after a successful deployment: https://marcusshih.github.io/chloe-nyc-expenses/ . This URL is an expected destination, not proof of deployment. Confirm the Actions deployment succeeds and then visit it on both phones.
 
-[Next.js static export](https://nextjs.org/docs/app/guides/static-exports) is enabled with `output: 'export'`. Production uses webpack for a reproducible build in environments that restrict Turbopack subprocesses. Local dev runs Next.js normally. No network font downloads are required.
+[Next.js static export](https://nextjs.org/docs/app/guides/static-exports) is enabled with `output: 'export'`. Production uses webpack for a reproducible build in environments that restrict Turbopack subprocesses. Local dev uses the same webpack compiler. No network font downloads are required.
 
 ## Money and behavior
 

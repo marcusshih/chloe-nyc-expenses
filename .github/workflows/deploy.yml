@@ -27,8 +27,12 @@ jobs:
           SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
-          test -n "$SUPABASE_URL" || { echo 'Set NEXT_PUBLIC_SUPABASE_URL repository variable'; exit 1; }
-          test -n "$SUPABASE_KEY" || { echo 'Set NEXT_PUBLIC_SUPABASE_ANON_KEY repository variable'; exit 1; }
+          if [ -z "$SUPABASE_URL" ] && [ -z "$SUPABASE_KEY" ]; then
+            echo '::warning::Supabase is not configured. Deploying the setup screen; authentication and trip data are unavailable until both repository variables are set and the site is rebuilt.'
+          elif [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo '::error::Set both NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY repository variables.'
+            exit 1
+          fi
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
