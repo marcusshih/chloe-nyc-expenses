@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { parseCents, shares, summarize, csv } from '../lib/money.js';
+const expense=(amount_cents,paid_by='Marcus',split_type='shared')=>({amount_cents,paid_by,split_type});
+test('amounts are parsed directly into cents',()=>{assert.equal(parseCents('25.50'),2550);assert.equal(parseCents('0.01'),1);assert.equal(parseCents('12.3'),1230);for(const bad of ['0','-1','1.001','1e3','Infinity','1000000.01'])assert.throws(()=>parseCents(bad));});
+test('every allocation conserves cents and odd shared cents consistently go to Marcus',()=>{for(let n=1;n<10000;n++){for(const type of ['shared','marcus','chloe']){const s=shares(expense(n,'Marcus',type));assert.equal(s.Marcus+s.Chloe,n);}const s=shares(expense(n));assert.equal(s.Marcus,Math.ceil(n/2));}assert.deepEqual(shares(expense(1)),{Marcus:1,Chloe:0});});
+test('settlement accounts for payer and personal responsibility independently',()=>{assert.equal(summarize([expense(5100)]).settlement,'Chloe owes Marcus $25.50');assert.equal(summarize([expense(5100,'Chloe')]).settlement,'Marcus owes Chloe $25.50');assert.equal(summarize([expense(5100,'Marcus','chloe')]).balance,5100);assert.equal(summarize([expense(5100,'Marcus','marcus')]).balance,0);assert.equal(summarize([]).balance,0);});
+test('paid totals and responsibility totals are equal across mixed expenses',()=>{const s=summarize([expense(333,'Chloe'),expense(1001,'Marcus','chloe'),expense(800,'Chloe','marcus')]);assert.equal(s.total,2134);assert.equal(s.owed.Marcus+s.owed.Chloe,s.total);assert.equal(s.paid.Marcus-s.owed.Marcus,-(s.paid.Chloe-s.owed.Chloe));});
+test('CSV preserves precision, escapes quotes, and neutralizes formula cells',()=>{const result=csv([{...expense(101),title:'=1+1',notes:'say "hi",\nokay'}]);assert.ok(result.includes('"1.01"'));assert.ok(result.includes('"\'=1+1"'));assert.ok(result.includes('say ""hi"",\nokay'));});
